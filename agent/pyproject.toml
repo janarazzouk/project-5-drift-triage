@@ -1,0 +1,26 @@
+[project]
+name = "drift-agent"
+version = "0.1.0"
+description = "Agentic triage service for drift incidents"
+requires-python = ">=3.11,<3.12"
+
+dependencies = [
+    "fastapi==0.115.6",
+    "uvicorn[standard]==0.34.0",
+    "pydantic==2.10.4",
+    "pydantic-settings==2.7.1",
+
+    "langgraph==0.2.60",
+    "langchain==0.3.13",
+    "langchain-openai==0.2.14",
+
+    "redis==5.2.1",
+    "rq==2.0.0",
+    "httpx==0.28.1",
+    "python-dotenv==1.0.1",
+
+    "pytest==8.3.4"
+]
+
+[tool.uv]
+package = false

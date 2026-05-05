@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+.venv/
+venv/
+env/
+pip-wheel-metadata/
+*.egg-info/
+
+# Environment files
+.env
+.env.local
+
+# ML artifacts
+mlruns/
+models/
+artifacts/
+*.pkl
+*.joblib
+*.onnx
+
+# Data
+data/
+*.csv
+*.parquet
+*.db
+*.sqlite3
+
+# Logs
+logs/
+*.log
+
+# OS / IDE
+.DS_Store
+.vscode/
+.idea/
+
+# Docker
+*.pid

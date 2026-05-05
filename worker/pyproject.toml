@@ -1,0 +1,16 @@
+[project]
+name = "drift-worker"
+version = "0.1.0"
+description = "Background worker for drift triage jobs"
+requires-python = ">=3.11,<3.12"
+
+dependencies = [
+    "redis==5.2.1",
+    "rq==2.0.0",
+    "httpx==0.28.1",
+    "python-dotenv==1.0.1",
+    "pydantic==2.10.4"
+]
+
+[tool.uv]
+package = false
