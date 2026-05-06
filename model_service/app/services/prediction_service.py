@@ -7,7 +7,7 @@ import joblib
 import numpy as np
 import pandas as pd
 
-from app.config import Settings
+from app.core.config import Settings
 
 
 class Predictor:

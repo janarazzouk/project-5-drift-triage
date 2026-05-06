@@ -4,8 +4,8 @@ from typing import Any
 
 import mlflow
 
-from app.config import Settings
-from app.predict import Predictor
+from app.core.config import Settings
+from app.services.prediction_service import Predictor
 
 
 def read_json_if_exists(path: Path) -> dict[str, Any]:

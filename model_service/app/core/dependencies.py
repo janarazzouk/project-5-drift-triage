@@ -3,16 +3,16 @@ from typing import Generator
 
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.config import get_settings
-from app.database import (
+from app.core.config import get_settings
+from app.core.db import (
     build_session_factory,
     init_db,
     save_or_update_reference_statistics,
     save_or_update_registry_state,
 )
-from app.drift import DriftService
-from app.predict import Predictor
-from app.registry import RegistryClient
+from app.services.drift_service import DriftService
+from app.services.prediction_service import Predictor
+from app.services.registry_service import RegistryClient
 
 
 @lru_cache

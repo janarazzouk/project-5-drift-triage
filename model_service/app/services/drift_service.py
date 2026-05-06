@@ -7,8 +7,8 @@ import pandas as pd
 from scipy.stats import chisquare
 from sqlalchemy.orm import Session
 
-from app.config import Settings
-from app.database import PredictionRecord
+from app.core.config import Settings
+from app.models.prediction import PredictionRecord
 
 
 EPSILON = 1e-6
@@ -36,7 +36,9 @@ def psi(expected: list[float], actual: list[float]) -> float:
     expected_array = np.clip(expected_array, EPSILON, None)
     actual_array = np.clip(actual_array, EPSILON, None)
 
-    return float(np.sum((actual_array - expected_array) * np.log(actual_array / expected_array)))
+    return float(
+        np.sum((actual_array - expected_array) * np.log(actual_array / expected_array))
+    )
 
 
 def severity_from_score(
@@ -94,9 +96,17 @@ class DriftService:
             kind = reference.get("kind", "unknown")
 
             if kind == "numeric":
-                result = self._numeric_drift(feature_name, recent_df[feature_name], reference)
+                result = self._numeric_drift(
+                    feature_name,
+                    recent_df[feature_name],
+                    reference,
+                )
             else:
-                result = self._categorical_drift(feature_name, recent_df[feature_name], reference)
+                result = self._categorical_drift(
+                    feature_name,
+                    recent_df[feature_name],
+                    reference,
+                )
 
             feature_results.append(result)
             overall_score = max(overall_score, result["score"])
@@ -185,11 +195,16 @@ class DriftService:
         values = series.astype(str)
         actual_counts = [int((values == str(category)).sum()) for category in categories]
 
-        unknown_count = int(~values.isin([str(category) for category in categories]).sum())
+        unknown_count = int(
+            ~values.isin([str(category) for category in categories]).sum()
+        )
 
         score = psi(expected_distribution, actual_counts)
 
-        expected_counts = normalize_distribution(expected_distribution) * max(sum(actual_counts), 1)
+        expected_counts = normalize_distribution(expected_distribution) * max(
+            sum(actual_counts),
+            1,
+        )
 
         try:
             chi_square_stat, p_value = chisquare(
