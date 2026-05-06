@@ -5,6 +5,7 @@ from app.routers import (
     drift,
     health,
     predict,
+    promotion,
     registry,
     replay_compare,
     replay_fixture,
@@ -28,3 +29,4 @@ app.include_router(registry.router)
 app.include_router(drift.router)
 app.include_router(replay_fixture.router)
 app.include_router(replay_compare.router)
+app.include_router(promotion.router)

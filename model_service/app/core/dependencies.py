@@ -10,8 +10,10 @@ from app.core.db import (
     save_or_update_reference_statistics,
     save_or_update_registry_state,
 )
+from app.services.agent_webhook_service import AgentWebhookService
 from app.services.drift_service import DriftService
 from app.services.prediction_service import Predictor
+from app.services.promotion_service import PromotionService
 from app.services.registry_service import RegistryClient
 
 
@@ -32,6 +34,25 @@ def get_registry_client() -> RegistryClient:
     settings = get_settings()
     predictor = get_predictor()
     return RegistryClient(settings, predictor)
+
+
+@lru_cache
+def get_agent_webhook_service() -> AgentWebhookService:
+    settings = get_settings()
+    return AgentWebhookService(settings)
+
+
+@lru_cache
+def get_promotion_service() -> PromotionService:
+    settings = get_settings()
+    predictor = get_predictor()
+    registry_client = get_registry_client()
+
+    return PromotionService(
+        settings=settings,
+        predictor=predictor,
+        registry_client=registry_client,
+    )
 
 
 @lru_cache

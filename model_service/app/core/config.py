@@ -41,8 +41,27 @@ class Settings(BaseSettings):
     drift_critical_threshold: float = 0.25
 
     agent_drift_webhook_url: str | None = None
+    agent_webhook_timeout_seconds: float = 5.0
 
     allow_extra_features: bool = False
+
+    promotion_min_accuracy: float = 0.80
+    promotion_min_precision: float = 0.70
+    promotion_min_recall: float = 0.75
+    promotion_min_f1: float = 0.70
+    promotion_min_auc: float = 0.80
+
+    promotion_max_replay_mismatches: int = 0
+    promotion_max_probability_difference: float = 1e-12
+    promotion_allowed_drift_severities: str = "normal"
+
+    @property
+    def promotion_allowed_drift_severity_set(self) -> set[str]:
+        return {
+            severity.strip()
+            for severity in self.promotion_allowed_drift_severities.split(",")
+            if severity.strip()
+        }
 
     @property
     def resolved_model_path(self) -> Path:

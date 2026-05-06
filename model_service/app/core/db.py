@@ -9,6 +9,7 @@ from app.models import (
     Base,
     DriftCheck,
     PredictionRecord,
+    PromotionDecision,
     ReferenceStatistics,
     RegistryState,
 )
@@ -181,6 +182,52 @@ def save_drift_check(
         overall_score=overall_score,
         severity=severity,
         details_json=json_safe(details),
+    )
+
+    db.add(record)
+    db.commit()
+    db.refresh(record)
+
+    return record
+
+
+def get_latest_drift_check(db: Session) -> DriftCheck | None:
+    return db.query(DriftCheck).order_by(DriftCheck.created_at.desc()).first()
+
+
+def get_existing_promotion_decision(
+    db: Session,
+    *,
+    request_id: str,
+) -> PromotionDecision | None:
+    return (
+        db.query(PromotionDecision)
+        .filter(PromotionDecision.request_id == request_id)
+        .first()
+    )
+
+
+def save_promotion_decision(
+    db: Session,
+    *,
+    request_id: str,
+    model_name: str,
+    model_version: str | None,
+    requested_action: str,
+    target_environment: str,
+    promoted: bool,
+    message: str,
+    checklist: dict[str, Any],
+) -> PromotionDecision:
+    record = PromotionDecision(
+        request_id=request_id,
+        model_name=model_name,
+        model_version=model_version,
+        requested_action=requested_action,
+        target_environment=target_environment,
+        promoted=promoted,
+        message=message,
+        checklist_json=json_safe(checklist),
     )
 
     db.add(record)

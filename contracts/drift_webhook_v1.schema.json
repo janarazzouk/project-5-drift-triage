@@ -1,0 +1,210 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://drift-triage.local/contracts/drift_webhook_v1.schema.json",
+  "title": "Drift Webhook Contract v1",
+  "description": "Webhook payload sent from model_service to agent when drift severity changes.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "event_type",
+    "event_id",
+    "created_at",
+    "source_service",
+    "model_name",
+    "previous_severity",
+    "new_severity",
+    "overall_score",
+    "sample_size",
+    "min_required_samples",
+    "drift_report"
+  ],
+  "properties": {
+    "contract_version": {
+      "type": "string",
+      "const": "v1"
+    },
+    "event_type": {
+      "type": "string",
+      "const": "drift.severity_changed"
+    },
+    "event_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Unique idempotency key for this drift event."
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "source_service": {
+      "type": "string",
+      "const": "model_service"
+    },
+    "model_name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "model_version": {
+      "type": ["string", "null"]
+    },
+    "previous_severity": {
+      "$ref": "#/$defs/severity"
+    },
+    "new_severity": {
+      "$ref": "#/$defs/severity"
+    },
+    "overall_score": {
+      "type": "number",
+      "minimum": 0
+    },
+    "sample_size": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "min_required_samples": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "drift_report": {
+      "$ref": "#/$defs/drift_report"
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  "$defs": {
+    "severity": {
+      "type": "string",
+      "enum": [
+        "insufficient_data",
+        "normal",
+        "warning",
+        "critical"
+      ]
+    },
+    "drift_report": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sample_size",
+        "min_required_samples",
+        "severity",
+        "overall_score",
+        "features"
+      ],
+      "properties": {
+        "sample_size": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "min_required_samples": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "severity": {
+          "$ref": "#/$defs/severity"
+        },
+        "overall_score": {
+          "type": "number",
+          "minimum": 0
+        },
+        "features": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/drift_feature"
+          }
+        },
+        "output_drift": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/output_drift"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "drift_feature": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "feature",
+        "kind",
+        "score",
+        "severity",
+        "details"
+      ],
+      "properties": {
+        "feature": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "numeric",
+            "categorical",
+            "unknown"
+          ]
+        },
+        "score": {
+          "type": "number",
+          "minimum": 0
+        },
+        "severity": {
+          "$ref": "#/$defs/severity"
+        },
+        "details": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
+    "output_drift": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "kind",
+        "score",
+        "severity"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "minLength": 1
+        },
+        "score": {
+          "type": "number",
+          "minimum": 0
+        },
+        "severity": {
+          "$ref": "#/$defs/severity"
+        },
+        "probability_bins": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "actual_distribution": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "expected_distribution": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      }
+    }
+  }
+}

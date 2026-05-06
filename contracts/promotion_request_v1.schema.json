@@ -1,0 +1,143 @@
+
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://drift-triage.local/contracts/promotion_request_v1.schema.json",
+  "title": "Promotion Request Contract v1",
+  "description": "Request payload sent from agent to model_service after human approval for Production promotion.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "request_type",
+    "request_id",
+    "created_at",
+    "source_service",
+    "investigation_id",
+    "approval_id",
+    "requested_action",
+    "target_environment",
+    "model_name",
+    "model_version",
+    "human_approval",
+    "reason"
+  ],
+  "properties": {
+    "contract_version": {
+      "type": "string",
+      "const": "v1"
+    },
+    "request_type": {
+      "type": "string",
+      "const": "promotion.production.requested"
+    },
+    "request_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Unique idempotency key for this promotion request."
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "source_service": {
+      "type": "string",
+      "const": "agent"
+    },
+    "investigation_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "approval_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "requested_action": {
+      "type": "string",
+      "const": "promote_to_production"
+    },
+    "target_environment": {
+      "type": "string",
+      "const": "production"
+    },
+    "model_name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "model_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "human_approval": {
+      "$ref": "#/$defs/human_approval"
+    },
+    "reason": {
+      "type": "string",
+      "minLength": 1
+    },
+    "drift_context": {
+      "$ref": "#/$defs/drift_context"
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  "$defs": {
+    "human_approval": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "approved",
+        "approved_by",
+        "approved_at",
+        "approval_source"
+      ],
+      "properties": {
+        "approved": {
+          "type": "boolean",
+          "const": true
+        },
+        "approved_by": {
+          "type": "string",
+          "minLength": 1
+        },
+        "approved_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "approval_source": {
+          "type": "string",
+          "enum": [
+            "dashboard"
+          ]
+        }
+      }
+    },
+    "drift_context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "event_id",
+        "severity"
+      ],
+      "properties": {
+        "event_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "severity": {
+          "type": "string",
+          "enum": [
+            "insufficient_data",
+            "normal",
+            "warning",
+            "critical"
+          ]
+        },
+        "previous_model_version": {
+          "type": ["string", "null"]
+        }
+      }
+    }
+  }
+}
