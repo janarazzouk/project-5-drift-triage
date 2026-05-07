@@ -191,8 +191,13 @@ class InvestigationRepository:
         if record is None:
             return None
 
+        final_current_step = "completed"
+
+        if state is not None:
+            final_current_step = state.get("current_step") or "completed"
+
         record.status = "resolved"
-        record.current_step = "completed"
+        record.current_step = final_current_step
         record.summary = summary
         record.result_json = result
         record.state_json = state or record.state_json
