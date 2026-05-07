@@ -16,6 +16,7 @@ from app.queue.idempotency import IdempotencyStore
 from app.queue.producer import QueueProducer
 from app.queue.retry import RetryPolicy
 from app.schemas.job import JobResultPayload, WorkerJobEnvelope
+from app.services.job_log_service import JobLogService
 
 
 logger = get_logger(__name__)
@@ -33,6 +34,7 @@ class QueueConsumer:
         dlq: DeadLetterQueue,
         idempotency_store: IdempotencyStore,
         agent_client: AgentClient,
+        job_log_service: JobLogService,
     ):
         self.settings = settings
         self.redis_client = redis_client
@@ -42,6 +44,7 @@ class QueueConsumer:
         self.dlq = dlq
         self.idempotency_store = idempotency_store
         self.agent_client = agent_client
+        self.job_log_service = job_log_service
         self._running = True
 
     def run_forever(self) -> None:
@@ -104,6 +107,8 @@ class QueueConsumer:
         self,
         job: WorkerJobEnvelope,
     ) -> None:
+        attempts = job.attempts + 1
+
         logger.info(
             "Processing job.",
             extra={
@@ -114,6 +119,8 @@ class QueueConsumer:
         )
 
         if self.idempotency_store.was_completed(job.idempotency_key):
+            self.job_log_service.mark_skipped_duplicate(job)
+
             logger.info(
                 "Skipping completed duplicate job.",
                 extra={
@@ -140,7 +147,10 @@ class QueueConsumer:
             self.queue_producer.requeue(job.model_dump(mode="json"))
             return
 
-        attempts = job.attempts + 1
+        self.job_log_service.mark_processing(
+            job,
+            attempts=attempts,
+        )
 
         try:
             tool_result = self.job_router.run(job)
@@ -157,6 +167,12 @@ class QueueConsumer:
                     attempts=attempts,
                     result=tool_result.result,
                     error_message=None,
+                )
+
+                self.job_log_service.mark_completed(
+                    job,
+                    result=tool_result.result,
+                    attempts=attempts,
                 )
 
                 logger.info(
@@ -187,6 +203,12 @@ class QueueConsumer:
                 attempts,
                 max_attempts=job.max_attempts,
             ):
+                self.job_log_service.mark_retrying(
+                    job,
+                    error_message=error_message,
+                    attempts=attempts,
+                )
+
                 delay_seconds = self.retry_policy.delay_seconds(attempts)
 
                 logger.info(
@@ -221,6 +243,12 @@ class QueueConsumer:
                 attempts=attempts,
                 result=None,
                 error_message=error_message,
+            )
+
+            self.job_log_service.mark_dlq(
+                job,
+                error_message=error_message,
+                attempts=attempts,
             )
 
             logger.error(

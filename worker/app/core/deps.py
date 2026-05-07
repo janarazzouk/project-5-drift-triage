@@ -1,9 +1,11 @@
 from functools import lru_cache
 
+from sqlalchemy.orm import sessionmaker
+
 from app.clients.agent_client import AgentClient
 from app.clients.model_service_client import ModelServiceClient
-from app.core.config import Settings, get_settings
-from app.core.db import init_db
+from app.core.config import get_settings
+from app.core.db import build_session_factory, init_db
 from app.jobs.job_router import JobRouter
 from app.jobs.replay_test_job import ReplayTestJob
 from app.jobs.retrain_job import RetrainJob
@@ -14,9 +16,16 @@ from app.queue.idempotency import IdempotencyStore
 from app.queue.producer import QueueProducer
 from app.queue.redis_client import build_redis_client
 from app.queue.retry import RetryPolicy
+from app.services.job_log_service import JobLogService
 from app.tools.replay_test import ReplayTestTool
 from app.tools.retrain import RetrainTool
 from app.tools.rollback import RollbackTool
+
+
+@lru_cache
+def get_session_factory() -> sessionmaker:
+    settings = get_settings()
+    return build_session_factory(settings)
 
 
 @lru_cache
@@ -91,6 +100,13 @@ def get_dead_letter_queue() -> DeadLetterQueue:
 
 
 @lru_cache
+def get_job_log_service() -> JobLogService:
+    return JobLogService(
+        session_factory=get_session_factory(),
+    )
+
+
+@lru_cache
 def get_job_router() -> JobRouter:
     settings = get_settings()
     model_service_client = get_model_service_client()
@@ -132,6 +148,7 @@ def get_consumer() -> QueueConsumer:
         dlq=get_dead_letter_queue(),
         idempotency_store=get_idempotency_store(),
         agent_client=get_agent_client(),
+        job_log_service=get_job_log_service(),
     )
 
 
