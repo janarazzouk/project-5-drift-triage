@@ -1,0 +1,189 @@
+name: drift-triage-copilot
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: drift_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: drift_triage
+    ports:
+      - "5432:5432"
+    volumes:
+      - drift_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d drift_triage"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7
+    container_name: drift_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - drift_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  model_service:
+    build:
+      context: ./model_service
+      dockerfile: Dockerfile
+    container_name: drift_model_service
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+psycopg2://postgres:password@postgres:5432/drift_triage
+      MODEL_SERVICE_DATABASE_URL: postgresql+psycopg2://postgres:password@postgres:5432/drift_triage
+      SQLALCHEMY_DATABASE_URL: postgresql+psycopg2://postgres:password@postgres:5432/drift_triage
+
+      REDIS_URL: redis://redis:6379/0
+
+      AGENT_WEBHOOK_URL: http://agent:8010/webhooks/drift
+      MODEL_SERVICE_AGENT_WEBHOOK_URL: http://agent:8010/webhooks/drift
+
+      MLFLOW_TRACKING_URI: file:/mlflow/mlruns
+      MLFLOW_MODEL_NAME: drift-triage-bank-marketing-classifier
+      MODEL_SERVICE_MLFLOW_MODEL_NAME: drift-triage-bank-marketing-classifier
+
+      TRAINING_DATA_PATH: /data/raw/bank-additional-full.csv
+      TRAINING_ARTIFACT_DIR: artifacts
+      MODEL_SERVICE_ARTIFACT_DIR: artifacts
+      ARTIFACT_DIR: artifacts
+
+      MODEL_SERVICE_PROMOTION_MIN_ACCURACY: "0.70"
+      MODEL_SERVICE_PROMOTION_MIN_PRECISION: "0.20"
+      MODEL_SERVICE_PROMOTION_MIN_RECALL: "0.75"
+      MODEL_SERVICE_PROMOTION_MIN_F1: "0.35"
+      MODEL_SERVICE_PROMOTION_MIN_AUC: "0.80"
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/data:ro
+      - ./model_service/artifacts:/app/artifacts
+      - ./model_service/mlruns:/mlflow/mlruns
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: uv run uvicorn app.main:app --host 0.0.0.0 --port 8000
+
+  agent:
+    build:
+      context: ./agent
+      dockerfile: Dockerfile
+    container_name: drift_agent
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+psycopg2://postgres:password@postgres:5432/drift_triage
+      AGENT_DATABASE_URL: postgresql+psycopg2://postgres:password@postgres:5432/drift_triage
+      SQLALCHEMY_DATABASE_URL: postgresql+psycopg2://postgres:password@postgres:5432/drift_triage
+
+      LANGGRAPH_DATABASE_URL: postgresql+psycopg2://postgres:password@postgres:5432/drift_triage
+      LANGGRAPH_POSTGRES_URL: postgresql+psycopg2://postgres:password@postgres:5432/drift_triage
+      CHECKPOINT_DATABASE_URL: postgresql+psycopg2://postgres:password@postgres:5432/drift_triage
+
+      REDIS_URL: redis://redis:6379/0
+      AGENT_REDIS_URL: redis://redis:6379/0
+
+      MODEL_SERVICE_URL: http://model_service:8000
+      MODEL_SERVICE_BASE_URL: http://model_service:8000
+    ports:
+      - "8010:8010"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      model_service:
+        condition: service_started
+    command: uv run uvicorn app.main:app --host 0.0.0.0 --port 8010
+
+  worker:
+    build:
+      context: ./worker
+      dockerfile: Dockerfile
+    container_name: drift_worker
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+psycopg2://postgres:password@postgres:5432/drift_triage
+      WORKER_DATABASE_URL: postgresql+psycopg2://postgres:password@postgres:5432/drift_triage
+      SQLALCHEMY_DATABASE_URL: postgresql+psycopg2://postgres:password@postgres:5432/drift_triage
+
+      REDIS_URL: redis://redis:6379/0
+      WORKER_REDIS_URL: redis://redis:6379/0
+
+      AGENT_API_URL: http://agent:8010
+      AGENT_BASE_URL: http://agent:8010
+      MODEL_SERVICE_URL: http://model_service:8000
+      MODEL_SERVICE_BASE_URL: http://model_service:8000
+
+      MLFLOW_TRACKING_URI: file:/mlflow/mlruns
+      MLFLOW_MODEL_NAME: drift-triage-bank-marketing-classifier
+      MODEL_SERVICE_MLFLOW_MODEL_NAME: drift-triage-bank-marketing-classifier
+
+      TRAINING_DATA_PATH: /data/raw/bank-additional-full.csv
+      TRAINING_ARTIFACT_DIR: artifacts
+      MODEL_SERVICE_ARTIFACT_DIR: artifacts
+      ARTIFACT_DIR: artifacts
+
+      RETRAIN_WORKING_DIR: /workspace
+      RETRAIN_COMMAND: uv run --project /workspace python model_service/train.py
+      RETRAIN_TIMEOUT_SECONDS: "900"
+    volumes:
+      - ./data:/data:ro
+      - ./model_service:/workspace/model_service
+      - ./pyproject.toml:/workspace/pyproject.toml:ro
+      - ./uv.lock:/workspace/uv.lock:ro
+      - ./.python-version:/workspace/.python-version:ro
+      - ./.env:/workspace/.env:ro
+      - ./model_service/mlruns:/mlflow/mlruns
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      agent:
+        condition: service_started
+      model_service:
+        condition: service_started
+    command: uv run python -m app.main
+
+  dashboard:
+    build:
+      context: ./dashboard
+      dockerfile: Dockerfile
+    container_name: drift_dashboard
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      AGENT_API_URL: http://agent:8010
+      MODEL_SERVICE_API_URL: http://model_service:8000
+      DASHBOARD_REQUEST_TIMEOUT_SECONDS: "8"
+    ports:
+      - "8501:8501"
+    depends_on:
+      agent:
+        condition: service_started
+      model_service:
+        condition: service_started
+    command: uv run streamlit run dashboard.py --server.address=0.0.0.0 --server.port=8501
+
+volumes:
+  drift_postgres_data:
+  drift_redis_data:
