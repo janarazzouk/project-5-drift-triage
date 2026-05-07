@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 import streamlit as st
 
 from ui.api import ApiClient, now_utc_iso
-from ui.components import hero, json_expander, section, show_api_error
+from ui.components import hero, section, show_api_error
 
 
 def render_demo_controls_page(client: ApiClient) -> None:
@@ -34,7 +34,7 @@ def render_demo_controls_page(client: ApiClient) -> None:
         model_version=model_version,
     )
 
-    json_expander("Payload preview", payload)
+    _json_expander("Payload preview", payload)
 
     if st.button("Trigger critical retrain demo", use_container_width=True):
         result = client.send_drift_webhook(
@@ -44,7 +44,7 @@ def render_demo_controls_page(client: ApiClient) -> None:
 
         if result.ok:
             st.success("Critical drift webhook sent.")
-            json_expander("Agent response", result.data, expanded=True)
+            _json_expander("Agent response", result.data, expanded=True)
         else:
             show_api_error("Failed to send webhook", result.error, result.data)
 
@@ -61,7 +61,7 @@ def render_demo_controls_page(client: ApiClient) -> None:
         model_version=model_version,
     )
 
-    json_expander("Warning payload preview", warning_payload)
+    _json_expander("Warning payload preview", warning_payload)
 
     if st.button("Trigger warning replay demo", use_container_width=True):
         result = client.send_drift_webhook(
@@ -71,7 +71,7 @@ def render_demo_controls_page(client: ApiClient) -> None:
 
         if result.ok:
             st.success("Warning drift webhook sent.")
-            json_expander("Agent response", result.data, expanded=True)
+            _json_expander("Agent response", result.data, expanded=True)
         else:
             show_api_error("Failed to send webhook", result.error, result.data)
 
@@ -88,7 +88,7 @@ def render_demo_controls_page(client: ApiClient) -> None:
         model_version=model_version,
     )
 
-    json_expander("Rollback payload preview", rollback_payload)
+    _json_expander("Rollback payload preview", rollback_payload)
 
     if st.button("Trigger rollback approval demo", use_container_width=True):
         result = client.send_drift_webhook(
@@ -98,9 +98,14 @@ def render_demo_controls_page(client: ApiClient) -> None:
 
         if result.ok:
             st.success("Critical output drift webhook sent.")
-            json_expander("Agent response", result.data, expanded=True)
+            _json_expander("Agent response", result.data, expanded=True)
         else:
             show_api_error("Failed to send webhook", result.error, result.data)
+
+
+def _json_expander(title: str, data, expanded: bool = False) -> None:
+    with st.expander(title, expanded=expanded):
+        st.json(data)
 
 
 def _base_payload(

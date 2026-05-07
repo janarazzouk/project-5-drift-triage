@@ -33,6 +33,7 @@ def inject_global_styles() -> None:
         .sidebar-logo {
             width: 42px;
             height: 42px;
+            min-width: 42px;
             border-radius: 14px;
             background: linear-gradient(135deg, #2563EB, #7C3AED);
             color: white;
@@ -60,18 +61,21 @@ def inject_global_styles() -> None:
             background: linear-gradient(135deg, #EFF6FF, #F5F3FF);
             border: 1px solid #DBEAFE;
             margin-bottom: 1.2rem;
+            overflow: hidden;
         }
 
         .hero-title {
-            font-size: 2rem;
+            font-size: clamp(1.45rem, 3vw, 2rem);
             font-weight: 850;
             color: #0F172A;
             margin-bottom: 0.25rem;
+            line-height: 1.12;
         }
 
         .hero-subtitle {
             color: #475569;
             font-size: 1rem;
+            line-height: 1.45;
         }
 
         .kpi-card {
@@ -81,6 +85,7 @@ def inject_global_styles() -> None:
             padding: 1rem 1.1rem;
             box-shadow: 0 10px 30px rgba(15, 23, 42, 0.04);
             min-height: 118px;
+            overflow: hidden;
         }
 
         .kpi-label {
@@ -88,19 +93,26 @@ def inject_global_styles() -> None:
             font-size: 0.82rem;
             font-weight: 650;
             margin-bottom: 0.55rem;
+            overflow-wrap: anywhere;
         }
 
         .kpi-value {
-            font-size: 1.65rem;
+            font-size: clamp(1rem, 2.2vw, 1.55rem);
             font-weight: 850;
             color: #0F172A;
-            line-height: 1.1;
+            line-height: 1.15;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+            max-width: 100%;
         }
 
         .kpi-help {
             color: #64748B;
             font-size: 0.78rem;
             margin-top: 0.45rem;
+            line-height: 1.3;
+            overflow-wrap: anywhere;
+            word-break: break-word;
         }
 
         .soft-card {
@@ -110,6 +122,9 @@ def inject_global_styles() -> None:
             padding: 1rem 1.1rem;
             box-shadow: 0 10px 30px rgba(15, 23, 42, 0.04);
             margin-bottom: 1rem;
+            overflow: hidden;
+            overflow-wrap: anywhere;
+            word-break: break-word;
         }
 
         .section-title {
@@ -123,6 +138,7 @@ def inject_global_styles() -> None:
         .section-subtitle {
             color: #64748B;
             margin-bottom: 1rem;
+            line-height: 1.45;
         }
 
         .pill {
@@ -134,6 +150,9 @@ def inject_global_styles() -> None:
             font-size: 0.78rem;
             font-weight: 750;
             border: 1px solid transparent;
+            max-width: 100%;
+            overflow-wrap: anywhere;
+            word-break: break-word;
         }
 
         .pill-green {
@@ -179,6 +198,9 @@ def inject_global_styles() -> None:
             padding: 1.1rem;
             margin-bottom: 1rem;
             box-shadow: 0 10px 30px rgba(15, 23, 42, 0.04);
+            overflow: hidden;
+            overflow-wrap: anywhere;
+            word-break: break-word;
         }
 
         .muted {
@@ -187,6 +209,11 @@ def inject_global_styles() -> None:
 
         .small {
             font-size: 0.86rem;
+        }
+
+        div[data-testid="stDataFrame"] {
+            border-radius: 18px;
+            overflow: hidden;
         }
         </style>
         """,

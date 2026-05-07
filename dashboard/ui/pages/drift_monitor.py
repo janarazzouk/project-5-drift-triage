@@ -5,7 +5,6 @@ from ui.api import ApiClient
 from ui.components import (
     extract_list,
     hero,
-    json_expander,
     kpi_card,
     render_pill,
     safe_get,
@@ -17,13 +16,13 @@ from ui.components import (
 def render_drift_monitor_page(client: ApiClient) -> None:
     hero(
         "Drift Monitor",
-        "See why the system raised an alert and which features changed compared with the reference data.",
+        "Track drift severity, changed features, and output drift without exposing raw JSON.",
     )
 
     latest_drift = client.get_latest_drift()
 
     drift_data = None
-    source = "model_service"
+    source = "model service"
 
     if latest_drift.ok and isinstance(latest_drift.data, dict):
         drift_data = latest_drift.data
@@ -32,10 +31,10 @@ def render_drift_monitor_page(client: ApiClient) -> None:
 
         if investigations.ok:
             items = extract_list(investigations.data, "investigations")
-            critical_or_recent = items[0] if items else None
+            recent = items[0] if items else None
 
-            if critical_or_recent:
-                investigation_id = critical_or_recent.get("id") or critical_or_recent.get("investigation_id")
+            if recent:
+                investigation_id = recent.get("id") or recent.get("investigation_id")
                 detail = client.get_investigation(investigation_id)
 
                 if detail.ok:
@@ -43,7 +42,7 @@ def render_drift_monitor_page(client: ApiClient) -> None:
                         detail.data,
                         "drift_report",
                     )
-                    source = "agent investigation"
+                    source = "latest investigation"
 
     if not drift_data:
         show_api_error(
@@ -70,14 +69,13 @@ def render_drift_monitor_page(client: ApiClient) -> None:
     with col4:
         kpi_card("Minimum Required", min_required, "Reliability threshold")
 
-    st.markdown("Severity:")
     render_pill(severity)
 
     st.divider()
 
     section(
         "Feature Drift",
-        "Technical users can inspect the exact score; non-technical users can focus on severity.",
+        "Features that changed compared with the reference training distribution.",
     )
 
     features = drift_data.get("features") or []
@@ -89,7 +87,7 @@ def render_drift_monitor_page(client: ApiClient) -> None:
             rows.append(
                 {
                     "feature": feature.get("feature"),
-                    "kind": feature.get("kind"),
+                    "type": feature.get("kind"),
                     "score": feature.get("score"),
                     "severity": feature.get("severity"),
                     "reason": safe_get(feature, "details", "reason", default=""),
@@ -103,29 +101,12 @@ def render_drift_monitor_page(client: ApiClient) -> None:
     output_drift = drift_data.get("output_drift")
 
     if output_drift:
-        section("Output Drift", "Whether the model output distribution changed.")
-        st.dataframe(pd.DataFrame([output_drift]), use_container_width=True, hide_index=True)
-
-    st.divider()
-
-    section(
-        "Plain-English Explanation",
-        "Useful for non-technical users.",
-    )
-
-    if severity == "critical":
-        st.error(
-            "Critical drift means recent data is very different from the training reference. "
-            "The agent should open an investigation and may request retraining or rollback approval."
-        )
-    elif severity == "warning":
-        st.warning(
-            "Warning drift means the system detected a meaningful change. "
-            "A replay test is usually recommended before taking bigger action."
-        )
-    elif severity == "normal":
-        st.success("The latest drift report is normal. No immediate action is needed.")
-    else:
-        st.info("The drift status is unclear or there is not enough data yet.")
-
-    json_expander("Raw drift report", drift_data)
+        section("Output Drift", "Summary only.")
+        output_rows = [
+            {
+                "type": output_drift.get("kind"),
+                "score": output_drift.get("score"),
+                "severity": output_drift.get("severity"),
+            }
+        ]
+        st.dataframe(pd.DataFrame(output_rows), use_container_width=True, hide_index=True)

@@ -6,7 +6,6 @@ from ui.components import (
     extract_list,
     flatten_approval_row,
     hero,
-    json_expander,
     kpi_card,
     pill,
     section,
@@ -36,7 +35,7 @@ def render_human_approvals_page(client: ApiClient) -> None:
         kpi_card("Retrain Requests", retrain_count, "Creates candidate model")
     with c3:
         promotion_count = len([a for a in approvals if a.get("requested_action") == "promote_to_production"])
-        kpi_card("Promotion Requests", promotion_count, "Touches Production if checklist passes")
+        kpi_card("Promotion Requests", promotion_count, "Checklist still decides")
 
     st.divider()
 
@@ -45,7 +44,7 @@ def render_human_approvals_page(client: ApiClient) -> None:
     else:
         section(
             "Pending Actions",
-            "Every card explains the action in plain English and keeps the raw payload available for technical review.",
+            "Each card explains the action and lets a human approve or reject it.",
         )
 
         for approval in approvals:
@@ -63,7 +62,6 @@ def render_human_approvals_page(client: ApiClient) -> None:
             use_container_width=True,
             hide_index=True,
         )
-        json_expander("Raw approval history", history.data)
     else:
         st.info("Approval history endpoint is unavailable. Pending approvals still work.")
 
@@ -88,8 +86,10 @@ def _approval_card(client: ApiClient, approval: dict) -> None:
                 <div>{pill(approval.get("status"))}</div>
             </div>
             <hr style="border:none; border-top:1px solid #E2E8F0; margin:0.8rem 0;" />
-            <b>Model:</b> {model_name} · <b>Version:</b> {model_version}<br/>
-            <b>Target:</b> {target} · <b>Investigation:</b> {investigation_id}<br/><br/>
+            <b>Model:</b> {model_name}<br/>
+            <b>Version:</b> {model_version}<br/>
+            <b>Target:</b> {target}<br/>
+            <b>Investigation:</b> {investigation_id}<br/><br/>
             <span class="muted">{reason}</span>
         </div>
         """,
@@ -98,24 +98,27 @@ def _approval_card(client: ApiClient, approval: dict) -> None:
 
     if action == "retrain":
         st.info(
-            "This will queue a Redis retrain job. It creates a new candidate model version, "
-            "but it does not promote anything to Production yet."
+            "This queues a Redis retrain job. It creates a candidate model, not a Production model."
         )
     elif action == "promote_to_production":
         st.warning(
             "This asks the model service to run the promotion checklist. "
-            "Human approval alone does not guarantee Production promotion."
+            "The checklist can still block promotion."
         )
     elif action == "rollback_production":
         st.error(
-            "This can affect Production. Approve only if rollback is intended."
+            "This action can affect Production. Approve only if rollback is intended."
         )
 
     col1, col2 = st.columns(2)
 
     with col1:
         with st.form(f"approve_{approval_id}"):
-            approved_by = st.text_input("Approved by", value="janarazzouk", key=f"approved_by_{approval_id}")
+            approved_by = st.text_input(
+                "Approved by",
+                value="janarazzouk",
+                key=f"approved_by_{approval_id}",
+            )
             note = st.text_area("Approval note", value="", key=f"note_{approval_id}")
             submitted = st.form_submit_button("Approve", use_container_width=True)
 
@@ -123,15 +126,19 @@ def _approval_card(client: ApiClient, approval: dict) -> None:
                 result = client.approve(approval_id, approved_by, note)
 
                 if result.ok:
-                    st.success("Approval submitted.")
-                    json_expander("Approval response", result.data, expanded=True)
+                    message = result.data.get("message") if isinstance(result.data, dict) else "Approval submitted."
+                    st.success(message)
                     st.rerun()
                 else:
                     show_api_error("Approval failed", result.error, result.data)
 
     with col2:
         with st.form(f"reject_{approval_id}"):
-            rejected_by = st.text_input("Rejected by", value="janarazzouk", key=f"rejected_by_{approval_id}")
+            rejected_by = st.text_input(
+                "Rejected by",
+                value="janarazzouk",
+                key=f"rejected_by_{approval_id}",
+            )
             rejection_reason = st.text_area(
                 "Rejection reason",
                 value="Not approved for this demo.",
@@ -144,9 +151,6 @@ def _approval_card(client: ApiClient, approval: dict) -> None:
 
                 if result.ok:
                     st.success("Approval rejected.")
-                    json_expander("Rejection response", result.data, expanded=True)
                     st.rerun()
                 else:
                     show_api_error("Rejection failed", result.error, result.data)
-
-    json_expander("Raw approval payload", approval)

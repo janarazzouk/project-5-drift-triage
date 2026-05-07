@@ -58,12 +58,6 @@ def main() -> None:
     if st.sidebar.button("Refresh dashboard", use_container_width=True):
         st.rerun()
 
-    st.sidebar.caption("Connected services")
-    st.sidebar.code(
-        f"Agent: {config.agent_api_url}\nModel: {config.model_service_api_url}",
-        language="text",
-    )
-
     if page == "Overview":
         render_overview_page(client)
     elif page == "Drift Monitor":

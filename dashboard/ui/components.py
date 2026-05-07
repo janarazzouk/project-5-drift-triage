@@ -24,13 +24,28 @@ def section(title: str, subtitle: str | None = None) -> None:
         st.markdown(f'<div class="section-subtitle">{subtitle}</div>', unsafe_allow_html=True)
 
 
+def format_value(value: Any, *, max_length: int = 42) -> str:
+    if value is None:
+        return "—"
+
+    if isinstance(value, float):
+        return f"{value:.4f}"
+
+    text = str(value)
+
+    if len(text) > max_length:
+        return f"{text[:max_length - 1]}…"
+
+    return text
+
+
 def kpi_card(label: str, value: Any, help_text: str = "") -> None:
     st.markdown(
         f"""
         <div class="kpi-card">
             <div class="kpi-label">{label}</div>
-            <div class="kpi-value">{value}</div>
-            <div class="kpi-help">{help_text}</div>
+            <div class="kpi-value">{format_value(value)}</div>
+            <div class="kpi-help">{format_value(help_text, max_length=80)}</div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -61,15 +76,8 @@ def render_pill(value: Any) -> None:
     st.markdown(pill(value), unsafe_allow_html=True)
 
 
-def json_expander(title: str, data: Any, expanded: bool = False) -> None:
-    with st.expander(title, expanded=expanded):
-        st.json(data)
-
-
 def show_api_error(label: str, error: str | None, data: Any = None) -> None:
     st.warning(f"{label}: {error or 'No data returned.'}")
-    if data is not None:
-        json_expander("Response details", data)
 
 
 def extract_list(data: Any, key: str) -> list[dict[str, Any]]:
@@ -81,7 +89,15 @@ def extract_list(data: Any, key: str) -> list[dict[str, Any]]:
         if isinstance(value, list):
             return value
 
-        for fallback in ["items", "results", "records", "tracked_jobs", "approvals", "investigations", "jobs"]:
+        for fallback in [
+            "items",
+            "results",
+            "records",
+            "tracked_jobs",
+            "approvals",
+            "investigations",
+            "jobs",
+        ]:
             value = data.get(fallback)
             if isinstance(value, list):
                 return value
@@ -127,7 +143,6 @@ def flatten_job_row(job: dict[str, Any]) -> dict[str, Any]:
         "attempts": job.get("attempts"),
         "model_version": result.get("model_version"),
         "completed": result.get("completed"),
-        "created_at": job.get("created_at"),
         "finished_at": job.get("finished_at"),
     }
 
@@ -139,8 +154,6 @@ def flatten_investigation_row(item: dict[str, Any]) -> dict[str, Any]:
         "status": item.get("status"),
         "current_step": item.get("current_step"),
         "recommended_action": item.get("recommended_action"),
-        "model_version": item.get("model_version"),
-        "updated_at": item.get("updated_at"),
     }
 
 
@@ -152,5 +165,25 @@ def flatten_approval_row(item: dict[str, Any]) -> dict[str, Any]:
         "status": item.get("status"),
         "model_version": item.get("model_version"),
         "investigation_id": item.get("investigation_id"),
-        "created_at": item.get("created_at"),
     }
+
+
+def clean_checklist_rows(checks: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [
+        {
+            "check": check.get("name"),
+            "passed": check.get("passed"),
+            "message": check.get("message"),
+        }
+        for check in checks
+    ]
+
+
+def clean_metric_rows(metrics: dict[str, Any]) -> list[dict[str, Any]]:
+    return [
+        {
+            "metric": key,
+            "value": value,
+        }
+        for key, value in metrics.items()
+    ]

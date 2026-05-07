@@ -3,10 +3,13 @@ import streamlit as st
 
 from ui.api import ApiClient
 from ui.components import (
+    clean_checklist_rows,
+    clean_metric_rows,
     extract_list,
+    flatten_approval_row,
     flatten_investigation_row,
+    flatten_job_row,
     hero,
-    json_expander,
     kpi_card,
     pill,
     safe_get,
@@ -18,7 +21,7 @@ from ui.components import (
 def render_investigations_page(client: ApiClient) -> None:
     hero(
         "Investigations",
-        "Follow the agent story from drift alert to decision, approval, job result, and final outcome.",
+        "Follow each agent investigation from drift alert to final outcome.",
     )
 
     investigations_result = client.list_investigations()
@@ -46,9 +49,7 @@ def render_investigations_page(client: ApiClient) -> None:
     section("All Investigations", "Open, resolved, and failed agent investigations.")
     st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
 
-    investigation_options = [
-        row["id"] for row in rows if row.get("id")
-    ]
+    investigation_options = [row["id"] for row in rows if row.get("id")]
 
     selected_id = st.selectbox(
         "Select an investigation",
@@ -83,7 +84,7 @@ def _render_investigation_detail(client: ApiClient, investigation_id: str) -> No
 
     section(
         f"Investigation {investigation_id}",
-        "Readable summary first, raw technical state in expanders below.",
+        "Readable summary of the agent decision and final outcome.",
     )
 
     c1, c2, c3, c4 = st.columns(4)
@@ -93,9 +94,9 @@ def _render_investigation_detail(client: ApiClient, investigation_id: str) -> No
     with c2:
         kpi_card("Status", status or "—", "Investigation state")
     with c3:
-        kpi_card("Current Step", current_step or "—", "Agent workflow step")
+        kpi_card("Current Step", current_step or "—", "Workflow step")
     with c4:
-        kpi_card("Recommended Action", recommended_action or "—", "Agent decision")
+        kpi_card("Action", recommended_action or "—", "Current recommendation")
 
     st.markdown(
         f"""
@@ -115,21 +116,16 @@ def _render_investigation_detail(client: ApiClient, investigation_id: str) -> No
         section("Candidate Model", "Created by retraining.")
         c1, c2, c3 = st.columns(3)
         with c1:
-            kpi_card("Candidate Version", candidate.get("model_version", "—"), "MLflow model version")
+            kpi_card("Candidate Version", candidate.get("model_version", "—"), "MLflow version")
         with c2:
             kpi_card("Threshold", candidate.get("selected_threshold", "—"), "Operating threshold")
         with c3:
-            kpi_card("MLflow Run", candidate.get("mlflow_run_id", "—"), "Training run")
+            kpi_card("Run ID", candidate.get("mlflow_run_id", "—"), "MLflow run")
 
         metrics = candidate.get("test_metrics") or {}
         if metrics:
             st.dataframe(
-                pd.DataFrame(
-                    [
-                        {"metric": key, "value": value}
-                        for key, value in metrics.items()
-                    ]
-                ),
+                pd.DataFrame(clean_metric_rows(metrics)),
                 use_container_width=True,
                 hide_index=True,
             )
@@ -138,39 +134,32 @@ def _render_investigation_detail(client: ApiClient, investigation_id: str) -> No
         section("Promotion Result", "Whether the candidate reached Production.")
         promoted = promotion_result.get("promoted")
         message = promotion_result.get("message", "No promotion message.")
+
         st.markdown(f"{pill(promoted)} {message}", unsafe_allow_html=True)
 
-        checklist = safe_get(promotion_result, "checklist", "checks", default=[])
-        if checklist:
-            st.dataframe(pd.DataFrame(checklist), use_container_width=True, hide_index=True)
-
-    messages = extract_list(data, "messages")
-    if messages:
-        section("Timeline", "Agent messages, approvals, tool results, and final outcome.")
-        for message in messages:
-            role = message.get("role")
-            node = message.get("node_name")
-            content = message.get("content")
-            created_at = message.get("created_at")
-            st.markdown(
-                f"""
-                <div class="soft-card">
-                    <b>{node}</b> · <span class="muted">{role}</span> · <span class="muted">{created_at}</span><br/>
-                    {content}
-                </div>
-                """,
-                unsafe_allow_html=True,
+        checks = safe_get(promotion_result, "checklist", "checks", default=[])
+        if checks:
+            st.dataframe(
+                pd.DataFrame(clean_checklist_rows(checks)),
+                use_container_width=True,
+                hide_index=True,
             )
 
-    jobs = extract_list(data, "jobs")
     approvals = extract_list(data, "approvals")
+    jobs = extract_list(data, "jobs")
 
     if approvals:
         section("Approvals")
-        st.dataframe(pd.DataFrame(approvals), use_container_width=True, hide_index=True)
+        st.dataframe(
+            pd.DataFrame([flatten_approval_row(item) for item in approvals]),
+            use_container_width=True,
+            hide_index=True,
+        )
 
     if jobs:
         section("Jobs")
-        st.dataframe(pd.DataFrame(jobs), use_container_width=True, hide_index=True)
-
-    json_expander("Raw investigation summary", data)
+        st.dataframe(
+            pd.DataFrame([flatten_job_row(item) for item in jobs]),
+            use_container_width=True,
+            hide_index=True,
+        )
