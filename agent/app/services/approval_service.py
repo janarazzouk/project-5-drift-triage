@@ -144,6 +144,29 @@ class ApprovalService:
             metadata=decision_payload,
         )
 
+        investigation = self.investigation_repository.get_by_id(
+            db,
+            approval.investigation_id,
+        )
+
+        if investigation is not None:
+            state = dict(investigation.state_json or {})
+            state["approval_id"] = approval.id
+            state["approval_status"] = "approved"
+            state["status"] = "running"
+            state["current_step"] = "approval_approved"
+            state["result"] = decision_payload
+
+            self.investigation_repository.update_state(
+                db,
+                investigation_id=approval.investigation_id,
+                status="running",
+                current_step="approval_approved",
+                approval_id=approval.id,
+                result=decision_payload,
+                state=state,
+            )
+
         side_effect_result: dict[str, Any] | None = None
 
         if approval.requested_action == "promote_to_production":
@@ -360,6 +383,27 @@ class ApprovalService:
             ),
         )
 
+        investigation = self.investigation_repository.get_by_id(
+            db,
+            approval.investigation_id,
+        )
+
+        state = dict(investigation.state_json or {}) if investigation else {}
+
+        queued_job_ids = list(state.get("queued_job_ids") or [])
+
+        if response.queued and not response.duplicate:
+            queued_job_ids.append(response.job_id)
+
+        state["status"] = "waiting_for_job"
+        state["current_step"] = "rollback_queued"
+        state["recommended_action"] = "rollback_production"
+        state["production_action_required"] = True
+        state["approval_id"] = approval.id
+        state["approval_status"] = "approved"
+        state["queued_job_ids"] = queued_job_ids
+        state["last_queue_result"] = response.model_dump(mode="json")
+
         self.investigation_repository.update_state(
             db,
             investigation_id=approval.investigation_id,
@@ -367,6 +411,8 @@ class ApprovalService:
             current_step="rollback_queued",
             recommended_action="rollback_production",
             production_action_required=True,
+            approval_id=approval.id,
+            state=state,
         )
 
         return response.model_dump(mode="json")
