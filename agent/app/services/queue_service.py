@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.core.config import Settings
 from app.core.errors import QueueError
 from app.repositories.agent_message_repository import AgentMessageRepository
+from app.repositories.investigation_repository import InvestigationRepository
 from app.repositories.job_repository import JobRepository
 from app.schemas.queue import (
     EnqueueJobResponse,
@@ -29,6 +30,7 @@ class QueueService:
         self.redis_client = redis_client
         self.job_repository = JobRepository()
         self.message_repository = AgentMessageRepository()
+        self.investigation_repository = InvestigationRepository()
 
     def enqueue_job(
         self,
@@ -143,7 +145,6 @@ class QueueService:
                 result=payload.result,
                 attempts=payload.attempts,
             )
-            message_type = "tool_result"
             content = f"Job {payload.job_id} completed."
         elif payload.status == "dlq":
             record = self.job_repository.mark_dlq(
@@ -153,7 +154,6 @@ class QueueService:
                 attempts=payload.attempts,
                 result=payload.result,
             )
-            message_type = "dlq"
             content = f"Job {payload.job_id} moved to DLQ."
         else:
             record = self.job_repository.mark_failed(
@@ -162,7 +162,6 @@ class QueueService:
                 error_message=payload.error_message or "Job failed.",
                 attempts=payload.attempts,
             )
-            message_type = "tool_error"
             content = f"Job {payload.job_id} failed."
 
         if record is None:
@@ -182,9 +181,154 @@ class QueueService:
             },
         )
 
+        self._update_investigation_after_job_result(
+            db=db,
+            payload=payload,
+        )
+
         return JobResultCallbackResponse(
             accepted=True,
             job_id=payload.job_id,
             investigation_id=payload.investigation_id,
             message="Job result recorded.",
         )
+
+    def _update_investigation_after_job_result(
+        self,
+        *,
+        db: Session,
+        payload: JobResultCallbackRequest,
+    ) -> None:
+        investigation = self.investigation_repository.get_by_id(
+            db,
+            payload.investigation_id,
+        )
+
+        if investigation is None:
+            return
+
+        state = dict(investigation.state_json or {})
+        state["last_job_result"] = {
+            "job_id": payload.job_id,
+            "job_type": payload.job_type,
+            "status": payload.status,
+            "result": payload.result,
+            "error_message": payload.error_message,
+            "attempts": payload.attempts,
+            "finished_at": payload.finished_at.isoformat(),
+        }
+
+        if payload.status == "completed":
+            if payload.job_type == "replay_test":
+                replay_passed = bool((payload.result or {}).get("passed"))
+
+                if replay_passed:
+                    summary = (
+                        "Replay test completed successfully. The current model service "
+                        "matches the saved replay fixture, so no immediate Production "
+                        "change is required."
+                    )
+
+                    state["status"] = "resolved"
+                    state["current_step"] = "replay_test_completed"
+                    state["summary"] = summary
+
+                    self.investigation_repository.resolve(
+                        db,
+                        investigation_id=payload.investigation_id,
+                        summary=summary,
+                        result=state["last_job_result"],
+                        state=state,
+                    )
+                    return
+
+                summary = (
+                    "Replay test completed but failed. The model output does not match "
+                    "the saved replay fixture. Further investigation or retraining is needed."
+                )
+
+                state["status"] = "failed"
+                state["current_step"] = "replay_test_failed"
+                state["summary"] = summary
+
+                self.investigation_repository.fail(
+                    db,
+                    investigation_id=payload.investigation_id,
+                    summary=summary,
+                    result=state["last_job_result"],
+                    state=state,
+                )
+                return
+
+            if payload.job_type == "retrain":
+                summary = (
+                    "Retrain job completed. A new candidate model may be available, "
+                    "but Production promotion still requires human approval and the "
+                    "model service promotion checklist."
+                )
+
+                state["status"] = "resolved"
+                state["current_step"] = "retrain_completed"
+                state["summary"] = summary
+
+                self.investigation_repository.resolve(
+                    db,
+                    investigation_id=payload.investigation_id,
+                    summary=summary,
+                    result=state["last_job_result"],
+                    state=state,
+                )
+                return
+
+            if payload.job_type == "rollback":
+                summary = "Rollback job completed."
+
+                state["status"] = "resolved"
+                state["current_step"] = "rollback_completed"
+                state["summary"] = summary
+
+                self.investigation_repository.resolve(
+                    db,
+                    investigation_id=payload.investigation_id,
+                    summary=summary,
+                    result=state["last_job_result"],
+                    state=state,
+                )
+                return
+
+        if payload.status == "dlq":
+            summary = (
+                f"Job {payload.job_id} was moved to DLQ after retries. "
+                f"Reason: {payload.error_message or 'Unknown error'}"
+            )
+
+            state["status"] = "failed"
+            state["current_step"] = "job_dlq"
+            state["summary"] = summary
+
+            self.investigation_repository.fail(
+                db,
+                investigation_id=payload.investigation_id,
+                summary=summary,
+                result=state["last_job_result"],
+                state=state,
+            )
+            return
+
+        if payload.status == "failed":
+            summary = (
+                f"Job {payload.job_id} failed. "
+                f"Reason: {payload.error_message or 'Unknown error'}"
+            )
+
+            state["status"] = "failed"
+            state["current_step"] = "job_failed"
+            state["summary"] = summary
+
+            self.investigation_repository.fail(
+                db,
+                investigation_id=payload.investigation_id,
+                summary=summary,
+                result=state["last_job_result"],
+                state=state,
+            )

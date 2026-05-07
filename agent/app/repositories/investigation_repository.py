@@ -92,6 +92,9 @@ class InvestigationRepository:
         if status is not None:
             record.status = status
 
+            if status == "resolved" and record.resolved_at is None:
+                record.resolved_at = datetime.utcnow()
+
         if current_step is not None:
             record.current_step = current_step
 

@@ -213,16 +213,32 @@ class ApprovalService:
             metadata=decision_payload,
         )
 
+        investigation = self.investigation_repository.get_by_id(
+            db,
+            approval.investigation_id,
+        )
+
+        state = dict(investigation.state_json or {}) if investigation else {}
+
+        summary = (
+            f"Production action '{approval.requested_action}' was rejected. "
+            f"Reason: {rejection_reason}"
+        )
+
+        state["status"] = "resolved"
+        state["current_step"] = "approval_rejected"
+        state["approval_status"] = "rejected"
+        state["summary"] = summary
+        state["result"] = decision_payload
+
         self.investigation_repository.update_state(
             db,
             investigation_id=approval.investigation_id,
             status="resolved",
             current_step="approval_rejected",
-            summary=(
-                f"Production action '{approval.requested_action}' was rejected. "
-                f"Reason: {rejection_reason}"
-            ),
+            summary=summary,
             result=decision_payload,
+            state=state,
         )
 
         return approval
