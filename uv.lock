@@ -10,7 +10,7 @@ resolution-markers = [
 members = [
     "drift-dashboard",
     "drift-triage-agent",
-    "drift-worker",
+    "drift-triage-worker",
     "model-service",
     "project-5-drift-triage",
 ]
@@ -400,24 +400,42 @@ dev = [
 ]
 
 [[package]]
-name = "drift-worker"
+name = "drift-triage-worker"
 version = "0.1.0"
 source = { virtual = "worker" }
 dependencies = [
     { name = "httpx" },
+    { name = "psycopg2-binary" },
     { name = "pydantic" },
-    { name = "python-dotenv" },
+    { name = "pydantic-settings" },
+    { name = "python-json-logger" },
     { name = "redis" },
-    { name = "rq" },
+    { name = "sqlalchemy" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "respx" },
 ]
 
 [package.metadata]
 requires-dist = [
-    { name = "httpx", specifier = "==0.28.1" },
-    { name = "pydantic", specifier = "==2.10.4" },
-    { name = "python-dotenv", specifier = "==1.0.1" },
-    { name = "redis", specifier = "==5.2.1" },
-    { name = "rq", specifier = "==2.0.0" },
+    { name = "httpx", specifier = ">=0.27.0" },
+    { name = "psycopg2-binary", specifier = ">=2.9.9" },
+    { name = "pydantic", specifier = ">=2.7.0" },
+    { name = "pydantic-settings", specifier = ">=2.3.0" },
+    { name = "python-json-logger", specifier = ">=2.0.7" },
+    { name = "redis", specifier = ">=5.0.0" },
+    { name = "sqlalchemy", specifier = ">=2.0.0" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "pytest", specifier = ">=8.2.0" },
+    { name = "pytest-cov", specifier = ">=5.0.0" },
+    { name = "respx", specifier = ">=0.21.0" },
 ]
 
 [[package]]
