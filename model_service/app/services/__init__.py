@@ -3,6 +3,7 @@ from app.services.drift_service import DriftService
 from app.services.prediction_service import Predictor
 from app.services.promotion_service import PromotionService
 from app.services.registry_service import RegistryClient
+from app.services.rollback_service import RollbackService
 
 
 __all__ = [
@@ -11,4 +12,5 @@ __all__ = [
     "Predictor",
     "PromotionService",
     "RegistryClient",
+    "RollbackService",
 ]

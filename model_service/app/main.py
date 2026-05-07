@@ -9,6 +9,7 @@ from app.routers import (
     registry,
     replay_compare,
     replay_fixture,
+    rollback,
 )
 
 
@@ -30,3 +31,4 @@ app.include_router(drift.router)
 app.include_router(replay_fixture.router)
 app.include_router(replay_compare.router)
 app.include_router(promotion.router)
+app.include_router(rollback.router)

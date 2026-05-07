@@ -15,6 +15,7 @@ from app.services.drift_service import DriftService
 from app.services.prediction_service import Predictor
 from app.services.promotion_service import PromotionService
 from app.services.registry_service import RegistryClient
+from app.services.rollback_service import RollbackService
 
 
 @lru_cache
@@ -51,6 +52,17 @@ def get_promotion_service() -> PromotionService:
     return PromotionService(
         settings=settings,
         predictor=predictor,
+        registry_client=registry_client,
+    )
+
+
+@lru_cache
+def get_rollback_service() -> RollbackService:
+    settings = get_settings()
+    registry_client = get_registry_client()
+
+    return RollbackService(
+        settings=settings,
         registry_client=registry_client,
     )
 

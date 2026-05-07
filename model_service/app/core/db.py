@@ -12,6 +12,7 @@ from app.models import (
     PromotionDecision,
     ReferenceStatistics,
     RegistryState,
+    RollbackDecision,
 )
 
 
@@ -94,6 +95,24 @@ def save_prediction(
     return record
 
 
+def get_registry_state(
+    db: Session,
+    *,
+    model_name: str,
+    model_version: str | None,
+) -> RegistryState | None:
+    query = db.query(RegistryState).filter(
+        RegistryState.model_name == model_name,
+    )
+
+    if model_version is None:
+        query = query.filter(RegistryState.model_version.is_(None))
+    else:
+        query = query.filter(RegistryState.model_version == model_version)
+
+    return query.first()
+
+
 def save_or_update_registry_state(
     db: Session,
     *,
@@ -104,13 +123,10 @@ def save_or_update_registry_state(
     selected_threshold: float,
     metrics: dict[str, Any],
 ) -> RegistryState:
-    record = (
-        db.query(RegistryState)
-        .filter(
-            RegistryState.model_name == model_name,
-            RegistryState.model_version == model_version,
-        )
-        .first()
+    record = get_registry_state(
+        db,
+        model_name=model_name,
+        model_version=model_version,
     )
 
     if record is None:
@@ -228,6 +244,56 @@ def save_promotion_decision(
         promoted=promoted,
         message=message,
         checklist_json=json_safe(checklist),
+    )
+
+    db.add(record)
+    db.commit()
+    db.refresh(record)
+
+    return record
+
+
+def get_existing_rollback_decision(
+    db: Session,
+    *,
+    request_id: str,
+) -> RollbackDecision | None:
+    return (
+        db.query(RollbackDecision)
+        .filter(RollbackDecision.request_id == request_id)
+        .first()
+    )
+
+
+def save_rollback_decision(
+    db: Session,
+    *,
+    request_id: str,
+    investigation_id: str,
+    approval_id: str,
+    model_name: str,
+    model_version: str | None,
+    requested_action: str,
+    target_environment: str,
+    previous_stage: str | None,
+    new_stage: str | None,
+    rolled_back: bool,
+    message: str,
+    details: dict[str, Any],
+) -> RollbackDecision:
+    record = RollbackDecision(
+        request_id=request_id,
+        investigation_id=investigation_id,
+        approval_id=approval_id,
+        model_name=model_name,
+        model_version=model_version,
+        requested_action=requested_action,
+        target_environment=target_environment,
+        previous_stage=previous_stage,
+        new_stage=new_stage,
+        rolled_back=rolled_back,
+        message=message,
+        details_json=json_safe(details),
     )
 
     db.add(record)

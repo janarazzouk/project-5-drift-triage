@@ -6,6 +6,7 @@ from app.routers import (
     registry,
     replay_compare,
     replay_fixture,
+    rollback,
 )
 
 
@@ -17,4 +18,5 @@ __all__ = [
     "registry",
     "replay_compare",
     "replay_fixture",
+    "rollback",
 ]

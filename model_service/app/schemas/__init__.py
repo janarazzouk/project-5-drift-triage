@@ -13,6 +13,7 @@ from app.schemas.promotion import (
 from app.schemas.registry import RegistryResponse
 from app.schemas.replay_compare import ReplayComparisonItem, ReplayComparisonResponse
 from app.schemas.replay_fixture import ReplayFixtureResponse
+from app.schemas.rollback import RollbackRequest, RollbackResponse
 
 
 __all__ = [
@@ -32,4 +33,6 @@ __all__ = [
     "ReplayComparisonItem",
     "ReplayComparisonResponse",
     "ReplayFixtureResponse",
+    "RollbackRequest",
+    "RollbackResponse",
 ]
