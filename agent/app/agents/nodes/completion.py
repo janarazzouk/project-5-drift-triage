@@ -10,7 +10,7 @@ def completion_node(state: AgentState) -> AgentState:
         status = "running"
         result_message = (
             "Agent decision completed. The service layer will create a human approval "
-            "request before any Production action is executed."
+            "request before the selected action is executed."
         )
     elif queue_job_required:
         status = "running"
@@ -20,7 +20,7 @@ def completion_node(state: AgentState) -> AgentState:
         )
     elif recommended_action in {"monitor", "resolve", None}:
         status = "resolved"
-        result_message = "Agent decision completed. No Production action or queue job is required."
+        result_message = "Agent decision completed. No approval or queue job is required."
     else:
         status = "running"
         result_message = "Agent decision completed."
@@ -29,6 +29,7 @@ def completion_node(state: AgentState) -> AgentState:
         "recommended_action": recommended_action,
         "production_action_required": production_action_required,
         "queue_job_required": queue_job_required,
+        "target_environment": (state.get("action_result") or {}).get("target_environment"),
         "summary": state.get("summary"),
     }
 

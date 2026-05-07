@@ -152,6 +152,7 @@ def build_action_decision(state: AgentState) -> dict[str, Any]:
             "recommended_action": "monitor",
             "production_action_required": False,
             "queue_job_required": False,
+            "target_environment": None,
             "reason": (
                 "There is not enough drift data yet. Keep collecting predictions "
                 "before dispatching replay, retrain, or rollback tools."
@@ -164,6 +165,7 @@ def build_action_decision(state: AgentState) -> dict[str, Any]:
                 "recommended_action": "resolve",
                 "production_action_required": False,
                 "queue_job_required": False,
+                "target_environment": None,
                 "reason": (
                     "Drift severity recovered to normal. Resolve the investigation "
                     "without touching Production."
@@ -174,6 +176,7 @@ def build_action_decision(state: AgentState) -> dict[str, Any]:
             "recommended_action": "monitor",
             "production_action_required": False,
             "queue_job_required": False,
+            "target_environment": None,
             "reason": "Drift is normal. Continue monitoring.",
         }
 
@@ -182,6 +185,7 @@ def build_action_decision(state: AgentState) -> dict[str, Any]:
             "recommended_action": "replay_test",
             "production_action_required": False,
             "queue_job_required": True,
+            "target_environment": None,
             "reason": (
                 "Warning drift should first dispatch a replay test to confirm that "
                 "the serving path, preprocessing, and model artifacts are still stable."
@@ -194,6 +198,7 @@ def build_action_decision(state: AgentState) -> dict[str, Any]:
                 "recommended_action": "rollback_production",
                 "production_action_required": True,
                 "queue_job_required": False,
+                "target_environment": "production",
                 "reason": (
                     "Critical drift after a warning state or critical output drift can "
                     "indicate Production risk. Request human approval before rollback."
@@ -202,11 +207,13 @@ def build_action_decision(state: AgentState) -> dict[str, Any]:
 
         return {
             "recommended_action": "retrain",
-            "production_action_required": False,
-            "queue_job_required": True,
+            "production_action_required": True,
+            "queue_job_required": False,
+            "target_environment": "candidate",
             "reason": (
-                "Critical feature drift was detected. Dispatch a retraining job to "
-                "create a new candidate model, but do not promote it automatically."
+                "Critical feature drift was detected. Retraining can create a new "
+                "candidate model and consume training resources, so it requires human "
+                "approval before the Redis retrain job is queued."
             ),
         }
 
@@ -214,6 +221,7 @@ def build_action_decision(state: AgentState) -> dict[str, Any]:
         "recommended_action": "monitor",
         "production_action_required": False,
         "queue_job_required": False,
+        "target_environment": None,
         "reason": "No matching route was found. Defaulting to monitor.",
     }
 

@@ -169,7 +169,10 @@ class WebhookService:
                 db,
                 investigation_id=investigation_id,
                 requested_action=recommended_action or "unknown",
-                target_environment="production",
+                target_environment=(
+                    (state.get("action_result") or {}).get("target_environment")
+                    or "production"
+                ),
                 model_name=state["model_name"],
                 model_version=state.get("model_version"),
                 reason=summary,

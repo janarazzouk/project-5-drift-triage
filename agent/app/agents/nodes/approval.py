@@ -3,6 +3,8 @@ from app.agents.state import AgentState, append_message
 
 def approval_node(state: AgentState) -> AgentState:
     recommended_action = state.get("recommended_action") or "unknown"
+    action_result = state.get("action_result") or {}
+    target_environment = action_result.get("target_environment") or "production"
 
     if not state.get("production_action_required"):
         return {
@@ -16,6 +18,7 @@ def approval_node(state: AgentState) -> AgentState:
                 metadata={
                     "recommended_action": recommended_action,
                     "production_action_required": False,
+                    "target_environment": target_environment,
                 },
             ),
         }
@@ -29,12 +32,14 @@ def approval_node(state: AgentState) -> AgentState:
             role="agent",
             node_name="approval",
             content=(
-                f"Human approval is required before executing Production action: "
-                f"{recommended_action}."
+                f"Human approval is required before executing action "
+                f"'{recommended_action}' for target environment "
+                f"'{target_environment}'."
             ),
             metadata={
                 "recommended_action": recommended_action,
                 "production_action_required": True,
+                "target_environment": target_environment,
             },
         ),
     }

@@ -194,6 +194,19 @@ class ApprovalService:
                 queue_service=queue_service,
             )
 
+        elif approval.requested_action == "retrain":
+            if queue_service is None:
+                raise InvalidStateError(
+                    "QueueService is required for retrain approval."
+                )
+
+            side_effect_result = self._queue_retrain_job(
+                db,
+                approval=approval,
+                approved_by=approved_by,
+                queue_service=queue_service,
+            )
+
         return approval, side_effect_result
 
     def reject(
@@ -244,7 +257,7 @@ class ApprovalService:
         state = dict(investigation.state_json or {}) if investigation else {}
 
         summary = (
-            f"Production action '{approval.requested_action}' was rejected. "
+            f"Action '{approval.requested_action}' was rejected. "
             f"Reason: {rejection_reason}"
         )
 
@@ -355,6 +368,91 @@ class ApprovalService:
         )
 
         return result
+
+    def _queue_retrain_job(
+        self,
+        db: Session,
+        *,
+        approval: Approval,
+        approved_by: str,
+        queue_service: QueueService,
+    ) -> dict[str, Any]:
+        investigation = self.investigation_repository.get_by_id(
+            db,
+            approval.investigation_id,
+        )
+
+        state = dict(investigation.state_json or {}) if investigation else {}
+        request_payload = dict(approval.request_payload_json or {})
+
+        model_version = approval.model_version or state.get("model_version")
+        event_id = state.get("event_id") or request_payload.get("event_id")
+        severity = state.get("severity") or request_payload.get("severity")
+        drift_report = state.get("drift_report") or request_payload.get("drift_report")
+
+        payload = {
+            "investigation_id": approval.investigation_id,
+            "approval_id": approval.id,
+            "approved_by": approved_by,
+            "model_name": approval.model_name,
+            "model_version": model_version,
+            "target_environment": approval.target_environment,
+            "event_id": event_id,
+            "severity": severity,
+            "drift_report": drift_report,
+            "recommended_action": "retrain",
+            "requested_action": approval.requested_action,
+        }
+
+        response = queue_service.enqueue_job(
+            db,
+            investigation_id=approval.investigation_id,
+            job_type="retrain",
+            payload=payload,
+            idempotency_key=(
+                f"retrain:{approval.investigation_id}:"
+                f"{model_version or 'unknown'}"
+            ),
+        )
+
+        queued_job_ids = list(state.get("queued_job_ids") or [])
+
+        if response.queued and not response.duplicate:
+            queued_job_ids.append(response.job_id)
+
+        state["status"] = "waiting_for_job"
+        state["current_step"] = "retrain_queued"
+        state["recommended_action"] = "retrain"
+        state["production_action_required"] = True
+        state["queue_job_required"] = True
+        state["approval_id"] = approval.id
+        state["approval_status"] = "approved"
+        state["queued_job_ids"] = queued_job_ids
+        state["last_queue_result"] = response.model_dump(mode="json")
+
+        self.investigation_repository.update_state(
+            db,
+            investigation_id=approval.investigation_id,
+            status="waiting_for_job",
+            current_step="retrain_queued",
+            recommended_action="retrain",
+            production_action_required=True,
+            approval_id=approval.id,
+            state=state,
+        )
+
+        self.message_repository.create_system_message(
+            db,
+            investigation_id=approval.investigation_id,
+            node_name="queue",
+            content=(
+                f"Retrain job {response.job_id} queued after human approval "
+                f"{approval.id}."
+            ),
+            metadata=response.model_dump(mode="json"),
+        )
+
+        return response.model_dump(mode="json")
 
     def _queue_rollback_job(
         self,
