@@ -144,28 +144,11 @@ class ApprovalService:
             metadata=decision_payload,
         )
 
-        investigation = self.investigation_repository.get_by_id(
+        self._mark_investigation_approval_approved(
             db,
-            approval.investigation_id,
+            approval=approval,
+            decision_payload=decision_payload,
         )
-
-        if investigation is not None:
-            state = dict(investigation.state_json or {})
-            state["approval_id"] = approval.id
-            state["approval_status"] = "approved"
-            state["status"] = "running"
-            state["current_step"] = "approval_approved"
-            state["result"] = decision_payload
-
-            self.investigation_repository.update_state(
-                db,
-                investigation_id=approval.investigation_id,
-                status="running",
-                current_step="approval_approved",
-                approval_id=approval.id,
-                result=decision_payload,
-                state=state,
-            )
 
         side_effect_result: dict[str, Any] | None = None
 
@@ -279,6 +262,38 @@ class ApprovalService:
 
         return approval
 
+    def _mark_investigation_approval_approved(
+        self,
+        db: Session,
+        *,
+        approval: Approval,
+        decision_payload: dict[str, Any],
+    ) -> None:
+        investigation = self.investigation_repository.get_by_id(
+            db,
+            approval.investigation_id,
+        )
+
+        if investigation is None:
+            return
+
+        state = dict(investigation.state_json or {})
+        state["approval_id"] = approval.id
+        state["approval_status"] = "approved"
+        state["status"] = "running"
+        state["current_step"] = f"{approval.requested_action}_approved"
+        state["result"] = decision_payload
+
+        self.investigation_repository.update_state(
+            db,
+            investigation_id=approval.investigation_id,
+            status="running",
+            current_step=state["current_step"],
+            approval_id=approval.id,
+            result=decision_payload,
+            state=state,
+        )
+
     def _call_promotion_endpoint(
         self,
         db: Session,
@@ -297,7 +312,8 @@ class ApprovalService:
                 f"Investigation not found: {approval.investigation_id}"
             )
 
-        state = investigation.state_json or {}
+        state = dict(investigation.state_json or {})
+        request_payload = dict(approval.request_payload_json or {})
 
         request_id = (
             f"promotion_{approval.investigation_id}_"
@@ -305,12 +321,14 @@ class ApprovalService:
         )
 
         drift_context = None
+        event_id = state.get("event_id") or request_payload.get("event_id")
+        severity = state.get("severity") or request_payload.get("severity")
 
-        if state.get("event_id") and state.get("severity"):
+        if event_id and severity:
             drift_context = PromotionDriftContext(
-                event_id=state["event_id"],
-                severity=state["severity"],
-                previous_model_version=state.get("previous_model_version"),
+                event_id=event_id,
+                severity=severity,
+                previous_model_version=state.get("model_version"),
             )
 
         payload = PromotionRequestPayload(
@@ -331,6 +349,8 @@ class ApprovalService:
             metadata={
                 "agent_investigation_id": approval.investigation_id,
                 "approval_id": approval.id,
+                "candidate_model": state.get("candidate_model"),
+                "source": "approval_service",
             },
         )
 
@@ -346,9 +366,21 @@ class ApprovalService:
             status = "failed"
             current_step = "promotion_blocked"
             summary = (
-                f"Promotion was blocked by the model service checklist: "
+                "Promotion was blocked by the model service checklist: "
                 f"{result.get('message', 'No message returned.')}"
             )
+
+        state["status"] = status
+        state["current_step"] = current_step
+        state["summary"] = summary
+        state["approval_status"] = "approved"
+        state["promotion_result"] = result
+        state["promoted_model"] = {
+            "model_name": approval.model_name,
+            "model_version": approval.model_version,
+            "target_environment": approval.target_environment,
+            "promoted": bool(result.get("promoted")),
+        }
 
         self.investigation_repository.update_state(
             db,
@@ -357,6 +389,7 @@ class ApprovalService:
             current_step=current_step,
             summary=summary,
             result=result,
+            state=state,
         )
 
         self.message_repository.create_tool_message(

@@ -36,6 +36,9 @@ class PromotionService:
         db: Session,
         request: PromotionRequest | None = None,
     ) -> PromotionChecklistResponse:
+        if request is not None:
+            self._reload_candidate_if_available(request)
+
         registry_info = self.registry_client.get_model_info()
         metrics = registry_info["metrics"]
 
@@ -60,7 +63,7 @@ class PromotionService:
 
         checks.extend(self._metric_checks(metrics))
         checks.extend(self._replay_checks())
-        checks.append(self._latest_drift_check(db))
+        checks.append(self._latest_drift_check(db, request=request))
 
         passed = all(check.passed for check in checks)
 
@@ -99,15 +102,18 @@ class PromotionService:
         if promoted:
             save_or_update_registry_state(
                 db,
-                model_name=registry_info["model_name"],
-                model_version=registry_info["model_version"],
+                model_name=request.model_name,
+                model_version=request.model_version,
                 model_stage="production",
                 artifact_uri=registry_info["artifact_paths"].get("model"),
                 selected_threshold=registry_info["threshold"],
                 metrics=registry_info["metrics"],
             )
 
-            message = "Model promoted to Production."
+            message = (
+                f"Model '{request.model_name}' version '{request.model_version}' "
+                "promoted to Production."
+            )
         else:
             message = "Promotion blocked because checklist failed."
 
@@ -132,6 +138,14 @@ class PromotionService:
             target_environment=request.target_environment,
             message=message,
             checklist=checklist,
+        )
+
+    def _reload_candidate_if_available(
+        self,
+        request: PromotionRequest,
+    ) -> None:
+        self.predictor.reload_if_runtime_model_version_matches(
+            request.model_version,
         )
 
     def _artifact_checks(self) -> list[PromotionCheckResult]:
@@ -193,10 +207,10 @@ class PromotionService:
             ),
             PromotionCheckResult(
                 name="requested_model_version_matches_loaded_model",
-                passed=request.model_version == current_model_version,
+                passed=str(request.model_version) == str(current_model_version),
                 message=(
                     "Requested model version matches loaded model."
-                    if request.model_version == current_model_version
+                    if str(request.model_version) == str(current_model_version)
                     else (
                         f"Requested model version '{request.model_version}' does not match "
                         f"loaded model version '{current_model_version}'."
@@ -294,7 +308,23 @@ class PromotionService:
             ),
         ]
 
-    def _latest_drift_check(self, db: Session) -> PromotionCheckResult:
+    def _latest_drift_check(
+        self,
+        db: Session,
+        *,
+        request: PromotionRequest | None = None,
+    ) -> PromotionCheckResult:
+        if request is not None and request.drift_context is not None:
+            return PromotionCheckResult(
+                name="promotion_has_drift_context",
+                passed=True,
+                message=(
+                    "Promotion request is linked to approved remediation for drift "
+                    f"event {request.drift_context.event_id} with severity "
+                    f"{request.drift_context.severity}."
+                ),
+            )
+
         latest_drift_check = get_latest_drift_check(db)
 
         if latest_drift_check is None:

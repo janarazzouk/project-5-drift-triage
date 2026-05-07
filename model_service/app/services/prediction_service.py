@@ -13,10 +13,24 @@ from app.core.config import Settings
 class Predictor:
     def __init__(self, settings: Settings):
         self.settings = settings
+        self.model = None
+        self.schema: dict[str, Any] = {}
+        self.runtime_config: dict[str, Any] = {}
+        self.threshold = 0.5
+        self.model_version: str | None = None
+        self.input_columns: list[str] = []
+        self.numeric_features: set[str] = set()
+        self.categorical_features: set[str] = set()
+        self.feature_types: dict[str, str] = {}
+        self.dropped_columns: set[str] = set()
+        self.special_handling: dict[str, Any] = {}
 
-        self.model = joblib.load(settings.resolved_model_path)
-        self.schema = self._load_json(settings.resolved_schema_path)
-        self.runtime_config = self._load_json(settings.resolved_runtime_config_path)
+        self.reload()
+
+    def reload(self) -> None:
+        self.model = joblib.load(self.settings.resolved_model_path)
+        self.schema = self._load_json(self.settings.resolved_schema_path)
+        self.runtime_config = self._load_json(self.settings.resolved_runtime_config_path)
 
         self.threshold = float(
             self.runtime_config.get("selected_threshold")
@@ -24,7 +38,8 @@ class Predictor:
             or 0.5
         )
 
-        self.model_version = self.runtime_config.get("model_version")
+        model_version = self.runtime_config.get("model_version")
+        self.model_version = str(model_version) if model_version is not None else None
 
         self.input_columns = self._extract_input_columns()
         self.numeric_features = set(self.schema.get("numeric_features", []))
@@ -32,6 +47,25 @@ class Predictor:
         self.feature_types = self.schema.get("feature_types", {})
         self.dropped_columns = set(self.schema.get("dropped_columns", []))
         self.special_handling = self.schema.get("special_handling", {})
+
+    def reload_if_runtime_model_version_matches(
+        self,
+        requested_model_version: str,
+    ) -> bool:
+        runtime_config = self._load_json(self.settings.resolved_runtime_config_path)
+        artifact_model_version = runtime_config.get("model_version")
+
+        if artifact_model_version is None:
+            return False
+
+        if str(artifact_model_version) != str(requested_model_version):
+            return False
+
+        if str(self.model_version) == str(requested_model_version):
+            return True
+
+        self.reload()
+        return str(self.model_version) == str(requested_model_version)
 
     def _load_json(self, path: Path) -> dict[str, Any]:
         with open(path, "r", encoding="utf-8") as file:
