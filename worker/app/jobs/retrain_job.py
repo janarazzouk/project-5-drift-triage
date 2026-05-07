@@ -14,14 +14,17 @@ class RetrainJob(BaseJob):
         self,
         job: WorkerJobEnvelope,
     ) -> ToolResult:
-        result = self.retrain_tool.run()
+        result = self.retrain_tool.run(
+            job_payload=job.payload,
+        )
 
         return ToolResult(
             success=result.completed,
             result=result.model_dump(mode="json"),
-            error_message=(
+            error_message=result.error_message
+            or (
                 None
                 if result.completed
-                else "Retrain command failed. Check stderr_tail for details."
+                else "Retrain job failed. Check stdout_tail and stderr_tail."
             ),
         )
