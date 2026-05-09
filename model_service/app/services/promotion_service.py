@@ -19,7 +19,19 @@ from app.services.prediction_service import Predictor
 from app.services.registry_service import RegistryClient
 from app.services.replay_service import compare_replay_fixture
 
+#This file protects Production.
 
+#It runs the promotion checklist.
+
+#It checks:
+
+#artifacts exist
+#model is loaded
+#metrics are good enough
+#replay fixture matches
+#latest drift is allowed
+#human approval exists
+#requested model matches loaded model
 class PromotionService:
     def __init__(
         self,

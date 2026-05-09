@@ -7,7 +7,7 @@ import mlflow
 from app.core.config import Settings
 from app.services.prediction_service import Predictor
 
-
+#This file reads model information from artifacts.
 def read_json_if_exists(path: Path) -> dict[str, Any]:
     if not path.exists():
         return {}
